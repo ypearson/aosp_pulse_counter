@@ -1,0 +1,41 @@
+commit eb46a9e39a42b46db6c512a963c907a5a7c08a75
+Author: Yvan Pearson <ypearson@gmail.com>
+Date:   Mon Oct 3 15:50:54 2016 -0400
+
+    device additions for pulse counter.
+    
+    Change-Id: Iaac487aac689a020306d87bef52aaaa81023eb6d
+
+diff --git a/AndroidProducts.mk b/AndroidProducts.mk
+index f91f10e..1476840 100644
+--- a/AndroidProducts.mk
++++ b/AndroidProducts.mk
+@@ -1,2 +1,3 @@
+ PRODUCT_MAKEFILES := \
+-    $(LOCAL_DIR)/msm8916_64.mk
++    $(LOCAL_DIR)/msm8916_64.mk \
++    $(LOCAL_DIR)/nklabs/pulse_counter/pulse_counter.mk
+diff --git a/init.target.rc b/init.target.rc
+index 90905da..8e82a85 100755
+--- a/init.target.rc
++++ b/init.target.rc
+@@ -36,6 +36,7 @@ on early-init
+ 
+ on post-fs
+     export LD_PRELOAD libNimsWrap.so
++    insmod /system/lib/modules/pcnt8.ko
+ 
+ on fs
+     wait /dev/block/bootdevice
+diff --git a/msm8916_64.mk b/msm8916_64.mk
+index d74e0b6..b22fd9e 100644
+--- a/msm8916_64.mk
++++ b/msm8916_64.mk
+@@ -190,3 +190,7 @@ PRODUCT_COPY_FILES += \
+     device/qcom/msm8916_64/sensors/hals.conf:system/etc/sensors/hals.conf
+ 
+ GMS_ENABLE_OPTIONAL_MODULES := false
++
++# SDK Addon
++PRODUCT_COPY_FILES += \
++    device/qcom/msm8916_64/nklabs/pulse_counter/frameworks/rcnt_library/com.nklabs.android.rcnt_library.xml:system/etc/permissions/com.nklabs.android.rcnt_library.xml
