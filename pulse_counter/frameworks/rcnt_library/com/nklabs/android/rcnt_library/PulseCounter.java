@@ -11,36 +11,42 @@ public final class PulseCounter {
 
     private static final String         LOG_TAG = "PulseCounter";
 
-    private IPulseCounterService    mService;
+    private IPulseCounterService    mService = null;
 
     private synchronized IPulseCounterService getService() {
+
         if (mService == null) {
-            mService =
-                IPulseCounterService.Stub.asInterface(
-                    ServiceManager.getService("rcnt"));
-                if (mService == null) {
-                    Log.w(LOG_TAG, "Unable to get service!");
-                }
+
+            mService = IPulseCounterService.Stub.asInterface(ServiceManager.getService("rcnt"));
+
+            if (mService == null) {
+                Log.w(LOG_TAG, "Unable to get service!");
+            } else {
+                Log.w(LOG_TAG, "Got service!");
+            }
         }
 
         return mService;
     }
 
-    public PulseCounter() {
-    }
+    public PulseCounter() {}
 
     public String getPulseCount() {
-        String                     ret = "error";
 
-        // try {
-        //     IPulseCounterService srv = getService();
+        String ret = "should work";
 
-        //     if (srv != null) {
-        //         ret = srv.read();
-        //     }
-        // } catch (RemoteException e) {
-        //     throw new RuntimeException(e);
-        // }
+        try {
+            IPulseCounterService srv = getService();
+
+            if (srv != null) {
+                ret = srv.read();
+            }
+
+        } catch (RemoteException e) {
+            Log.w(LOG_TAG, "Error in getPulseCount.");
+            throw new RuntimeException(e);
+
+        }
 
         return ret;
     }

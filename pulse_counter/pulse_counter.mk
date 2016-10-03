@@ -5,7 +5,7 @@ PRODUCT_PACKAGES := \
 
 # Copy over the XML permissions file for the library to the system image
 PRODUCT_COPY_FILES := \
-    device/qcom/msm8916_64/android-device-ballard/ballard/frameworks/rcnt_library/com.nklabs.android.rcnt_library.xml:system/etc/permissions/com.nklabs.android.rcnt_library.xml
+    device/qcom/msm8916_64/nklabs/pulse_counter/frameworks/rcnt_library/com.nklabs.android.rcnt_library.xml:system/etc/permissions/com.nklabs.android.rcnt_library.xml
 
 # Name the SDK Add-on
 PRODUCT_SDK_ADDON_NAME := rcnt_library
