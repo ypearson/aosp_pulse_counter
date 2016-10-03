@@ -1,0 +1,370 @@
+commit 015aa199042645f2a3dcaad8643b30e51b62b022
+Author: Yvan Pearson <ypearson@gmail.com>
+Date:   Mon Oct 3 15:38:34 2016 -0400
+
+    first working pulse counter framework update.
+    
+    Change-Id: I55286b7a0d4cf14e4c0782b2e323d415008f5cea
+
+diff --git a/Android.mk b/Android.mk
+index 0fd7642..2659881 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -213,6 +213,7 @@ LOCAL_SRC_FILES += \
+ 	core/java/android/os/INetworkActivityListener.aidl \
+ 	core/java/android/os/INetworkManagementService.aidl \
+ 	core/java/android/os/IPermissionController.aidl \
++	core/java/android/os/IPulseCounterService.aidl \
+ 	core/java/android/os/IProcessInfoService.aidl \
+ 	core/java/android/os/IPowerManager.aidl \
+ 	core/java/android/os/IRemoteCallback.aidl \
+diff --git a/core/java/android/os/IOpersysService.aidl b/core/java/android/os/IOpersysService.aidl
+new file mode 100644
+index 0000000..2c25ecb
+--- /dev/null
++++ b/core/java/android/os/IOpersysService.aidl
+@@ -0,0 +1,11 @@
++package android.os;
++
++/** @hide */
++
++public interface IOpersysService {
++String read(int maxLength);
++int write(String mString);
++void setValue(int val);
++void zero();
++}
++
+diff --git a/core/java/android/os/IPulseCounterService.aidl b/core/java/android/os/IPulseCounterService.aidl
+new file mode 100644
+index 0000000..e77093e
+--- /dev/null
++++ b/core/java/android/os/IPulseCounterService.aidl
+@@ -0,0 +1,8 @@
++package android.os;
++
++/** {@hide} */
++interface IPulseCounterService
++{
++   String read();
++}
++
+diff --git a/services/core/java/com/android/server/PulseCounterService.java b/services/core/java/com/android/server/PulseCounterService.java
+new file mode 100644
+index 0000000..0e3ed5f
+--- /dev/null
++++ b/services/core/java/com/android/server/PulseCounterService.java
+@@ -0,0 +1,118 @@
++package com.android.server;
++
++import android.content.Context;
++import android.os.Handler;
++import android.os.IPulseCounterService;
++import android.os.Looper;
++import android.os.Message;
++import android.os.Process;
++import android.util.Log;
++
++import java.io.FileDescriptor;
++import java.io.PrintWriter;
++
++
++public class PulseCounterService extends IPulseCounterService.Stub {
++    private static final String TAG = "PulseCounterService";
++    private PulseCounterWorkerThread mWorker;
++    private PulseCounterWorkerHandler mHandler;
++    private Context mContext;
++    private long mNativePointer;
++
++    public PulseCounterService(Context context) {
++	super();
++	mContext = context;
++	mWorker = new PulseCounterWorkerThread("PulseCounterServiceWorker");
++	mWorker.start();
++	Log.i(TAG, "Spawned worker thread =)");
++
++    mNativePointer = init_native();
++
++	//Log.i(TAG, "test() returns " + test_native(mNativePointer, 20));
++	//write("Hello");
++	Log.i(TAG, "mNativePointer =  " + Long.toString(mNativePointer));
++    // 	zero();
++    // Log.i(TAG, "zero() returns ");
++
++    }
++
++    // protected void finalize() throws Throwable {
++    //     finalize_native(mNativePointer);
++    //     super.finalize();
++    // }
++
++    public String read()
++    {
++	// int length;
++	// byte[] buffer = new byte[maxLength];
++        Log.i(TAG, "mNativePointer =  " + Long.toString(mNativePointer));
++       return Long.toString( read_native(mNativePointer) );
++	   //return Long.toString( mNativePointer );
++	//return new String(buffer, 0, length);
++    }
++
++ //    public int write(String mString)
++ //    {
++	// byte[] buffer = mString.getBytes();
++
++	// return write_native(mNativePointer, buffer);
++ //    }
++ //    public void zero() {
++
++ //    	zero_native(mNativePointer);
++ //    }
++
++    private static native long init_native();
++    //private static native void finalize_native(int ptr);
++    private static native long read_native(long ptr);
++ //    private static native int write_native(int ptr, byte[] buffer);
++ //    private static native int test_native(int ptr, int value);
++	// private static native int zero_native(int ptr);
++
++
++    public void setValue(int val)
++    {
++		Log.i(TAG, "setValue " + val);
++		Message msg = Message.obtain();
++		msg.what = PulseCounterWorkerHandler.MESSAGE_SET;
++		msg.arg1 = val;
++		mHandler.sendMessage(msg);
++    }
++
++    //@Override
++    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
++
++    	pw.println("dump of " + TAG);
++
++    }
++
++
++    private class PulseCounterWorkerThread extends Thread{
++	public PulseCounterWorkerThread(String name) {
++	    super(name);
++	}
++
++	public void run() {
++	    Looper.prepare();
++	    mHandler = new PulseCounterWorkerHandler();
++	    Looper.loop();
++	}
++    }
++
++    private class PulseCounterWorkerHandler extends Handler {
++	private static final int MESSAGE_SET = 0;
++
++	@Override
++	public void handleMessage(Message msg) {
++	    try {
++		if (msg.what == MESSAGE_SET) {
++		    Log.i(TAG, "set message received: " + msg.arg1);
++		}
++	    }
++	    catch (Exception e) {
++		// Log, don't crash!
++		Log.e(TAG, "Exception in PulseCounterWorkerHandler.handleMessage:", e);
++	    }
++	}
++    }
++}
+diff --git a/services/core/jni/Android.mk b/services/core/jni/Android.mk
+index 98d8d08..3db0b2d 100644
+--- a/services/core/jni/Android.mk
++++ b/services/core/jni/Android.mk
+@@ -25,6 +25,7 @@ LOCAL_SRC_FILES += \
+     $(LOCAL_REL_DIR)/com_android_server_location_GpsLocationProvider.cpp \
+     $(LOCAL_REL_DIR)/com_android_server_location_FlpHardwareProvider.cpp \
+     $(LOCAL_REL_DIR)/com_android_server_power_PowerManagerService.cpp \
++    $(LOCAL_REL_DIR)/com_android_server_PulseCounterService.cpp \
+     $(LOCAL_REL_DIR)/com_android_server_SerialService.cpp \
+     $(LOCAL_REL_DIR)/com_android_server_SystemServer.cpp \
+     $(LOCAL_REL_DIR)/com_android_server_tv_TvInputHal.cpp \
+diff --git a/services/core/jni/com_android_server_PulseCounterService.cpp b/services/core/jni/com_android_server_PulseCounterService.cpp
+new file mode 100644
+index 0000000..093b13d
+--- /dev/null
++++ b/services/core/jni/com_android_server_PulseCounterService.cpp
+@@ -0,0 +1,130 @@
++#define LOG_TAG "OpersysService"
++
++#include "jni.h"
++#include "JNIHelp.h"
++#include "android_runtime/AndroidRuntime.h"
++
++#include <utils/misc.h>
++#include <utils/Log.h>
++#include <hardware/hardware.h>
++#include <hardware/rcnt.h>
++#include <stdint.h>
++#include <stdio.h>
++
++namespace android
++{
++
++rcnt_device_t* rcnt_dev;
++
++static jlong init_native(JNIEnv *env, jobject clazz)
++{
++    int err;
++    hw_module_t* module;
++    rcnt_device_t* dev = NULL;
++
++    err = hw_get_module(RCNT_HARDWARE_MODULE_ID, (hw_module_t const**)&module);
++    if (err == 0) {
++        if (module->methods->open(module, "", ((hw_device_t**) &dev)) != 0)
++            return 0;
++    }
++
++    return (long)dev;
++}
++
++// static void finalize_native(JNIEnv *env, jobject clazz, long ptr)
++// {
++//     rcnt_device_t* dev = (rcnt_device_t*)ptr;
++
++//     if (dev == NULL) {
++//         return;
++//     }
++
++//     free(dev);
++// }
++
++static jlong read_native(JNIEnv *env, jobject clazz, long ptr)
++{
++    rcnt_device_t* dev = (rcnt_device_t*)ptr;
++    // jbyte* real_byte_array;
++    // int length;
++
++    // real_byte_array = env->GetByteArrayElements(buffer, NULL);
++
++    if (dev == NULL) {
++        return 0;
++    }
++
++    //length = dev->read();//(char*) real_byte_array, env->GetArrayLength(buffer));
++
++    //env->ReleaseByteArrayElements(buffer, real_byte_array, 0);
++
++    return dev->read();
++}
++
++// static int read_native(JNIEnv *env, jobject clazz, int ptr, jbyteArray buffer)
++// {
++//     rcnt_device_t* dev = (rcnt_device_t*)ptr;
++//     jbyte* real_byte_array;
++//     int length;
++
++//     real_byte_array = env->GetByteArrayElements(buffer, NULL);
++
++//     if (dev == NULL) {
++//         return 0;
++//     }
++
++//     length = dev->read((char*) real_byte_array, env->GetArrayLength(buffer));
++
++//     env->ReleaseByteArrayElements(buffer, real_byte_array, 0);
++
++//     return length;
++// }
++
++
++// static int write_native(JNIEnv *env, jobject clazz, int ptr, jbyteArray buffer)
++// {
++//     rcnt_device_t* dev = (rcnt_device_t*)ptr;
++//     jbyte* real_byte_array;
++//     int length;
++
++//     real_byte_array = env->GetByteArrayElements(buffer, NULL);
++
++//     if (dev == NULL) {
++//         return 0;
++//     }
++
++//     length = dev->write((char*) real_byte_array, env->GetArrayLength(buffer));
++
++//     env->ReleaseByteArrayElements(buffer, real_byte_array, 0);
++
++//     return length;
++// }
++
++// static int test_native(JNIEnv *env, jobject clazz, int ptr, int value)
++// {
++//     rcnt_device_t* dev = (rcnt_device_t*)ptr;
++
++//     if (dev == NULL) {
++//         return 0;
++//     }
++
++//     return dev->test(value);
++// }
++
++static JNINativeMethod method_table[] = {
++    { "init_native", "()J", (void*)init_native },
++   // { "finalize_native", "(J)V",  (void*) finalize_native },
++    { "read_native",     "(J)J",  (void*) read_native },
++    // { "read_native", "(I[B)I", (void*)read_native },
++    // { "write_native", "(I[B)I", (void*)write_native },
++    // { "test_native", "(II)I", (void*)test_native},
++};
++
++int register_android_server_PulseCounterService(JNIEnv *env)
++{
++    return jniRegisterNativeMethods(env, "com/android/server/PulseCounterService",
++            method_table, NELEM(method_table));
++
++};
++
++};
+diff --git a/services/core/jni/onload.cpp b/services/core/jni/onload.cpp
+index 1f3fde6..c7ea670 100644
+--- a/services/core/jni/onload.cpp
++++ b/services/core/jni/onload.cpp
+@@ -30,6 +30,7 @@ int register_android_server_InputWindowHandle(JNIEnv* env);
+ int register_android_server_InputManager(JNIEnv* env);
+ int register_android_server_LightsService(JNIEnv* env);
+ int register_android_server_PowerManagerService(JNIEnv* env);
++int register_android_server_PulseCounterService(JNIEnv* env);
+ int register_android_server_SerialService(JNIEnv* env);
+ int register_android_server_SystemServer(JNIEnv* env);
+ int register_android_server_UsbDeviceManager(JNIEnv* env);
+@@ -70,6 +71,7 @@ extern "C" jint JNI_OnLoad(JavaVM* vm, void* /* reserved */)
+     register_android_server_UsbMidiDevice(env);
+     register_android_server_UsbHostManager(env);
+     register_android_server_VibratorService(env);
++    register_android_server_PulseCounterService(env);
+     register_android_server_SystemServer(env);
+     register_android_server_location_GpsLocationProvider(env);
+     register_android_server_location_FlpHardwareProvider(env);
+diff --git a/services/java/com/android/server/SystemServer.java b/services/java/com/android/server/SystemServer.java
+index c4b2df8..7d19b0a 100644
+--- a/services/java/com/android/server/SystemServer.java
++++ b/services/java/com/android/server/SystemServer.java
+@@ -32,6 +32,7 @@ import android.os.Build;
+ import android.os.Environment;
+ import android.os.FactoryTest;
+ import android.os.IPowerManager;
++import android.os.IPulseCounterService;
+ import android.os.Looper;
+ import android.os.RemoteException;
+ import android.os.ServiceManager;
+@@ -552,6 +553,14 @@ public final class SystemServer {
+         AssetAtlasService atlas = null;
+         MediaRouterService mediaRouter = null;
+ 
++         // yvan
++        try {
++            ServiceManager.addService("rcnt", new PulseCounterService(context));
++            Slog.i(TAG, "Pulse Counter Service");
++        } catch (Throwable e) {
++            Slog.e(TAG, "Failure starting PulseCounterService", e);
++        }
++
+         // Bring up services needed for UI.
+         if (mFactoryTestMode != FactoryTest.FACTORY_TEST_LOW_LEVEL) {
+             try {
